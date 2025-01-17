@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import pytz
-
 # pip install python-dotenv
 from dotenv import find_dotenv, load_dotenv
 from langchain.prompts import ChatPromptTemplate
@@ -61,15 +60,15 @@ AGENT_TEMPLATE = """Ты - мой агент, помощник по ответа
 """
 
 
-def _answer(state: AmbientAssistantState) -> AnswerModel:    
+def _answer(state: AmbientAssistantState) -> AnswerModel:
     parser = PydanticOutputParser(pydantic_object=AnswerModel)
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", AGENT_TEMPLATE)
-    ]).partial(format_instructions=parser.get_format_instructions())
+    prompt = ChatPromptTemplate.from_messages([("system", AGENT_TEMPLATE)]).partial(
+        format_instructions=parser.get_format_instructions()
+    )
 
     chain = prompt | gpt | parser
     current_datetime = datetime.now(pytz.timezone(settings.timezone))
-    
+
     resp = chain.invoke(
         {
             "bio": state["bio"],

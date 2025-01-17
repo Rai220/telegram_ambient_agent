@@ -6,12 +6,14 @@ from pathlib import Path
 DATA_FILE = Path("processed_ids.pkl")
 MAX_IDS = 10000
 
+
 def load_processed_ids():
     """Загружает обработанные ID из файла."""
     if DATA_FILE.exists():
         with open(DATA_FILE, "rb") as file:
             return pickle.load(file)
     return deque(maxlen=MAX_IDS)
+
 
 def save_processed_ids(processed_ids):
     """Сохраняет обработанные ID в файл."""
