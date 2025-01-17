@@ -1,14 +1,16 @@
 import os
+import pickle
+import time
+from collections import deque
+from pathlib import Path
 
 from dotenv import find_dotenv, load_dotenv
 from telethon import TelegramClient
 from telethon.tl.functions.messages import SaveDraftRequest
-import settings
+from tenacity import retry, stop_after_attempt, wait_fixed
+
 import agent
-import time
-import pickle
-from collections import deque
-from pathlib import Path
+import settings
 import storage
 
 load_dotenv(find_dotenv())
@@ -27,7 +29,7 @@ def format_messages_as_chat(messages):
     chat_log = []
     for message in messages:
         if (
-            message.text or message.photo or message.video or message.sticker
+            message.text or message.photo or message.video or message.sticker or message.voice or message.audio
         ):  # Пропускаем сообщения без понятного контента
             # Преобразуем дату и время сообщения в строку
             timestamp = message.date.strftime("%Y-%m-%d %H:%M:%S")
@@ -47,14 +49,16 @@ def format_messages_as_chat(messages):
                 content = " <к сообщению приложено изображение>"
             if message.sticker:
                 content = " <к сообщению приложен стикер>"
+            if message.voice or message.audio:
+                content = " <к сообщению приложено аудио>"
             # Формируем строку для сообщения
             chat_log.insert(
                 0, f"[{timestamp}] {sender}: {forward_info} {message.text} {content}\n"
             )
     return "\n".join(chat_log)
 
-
-async def main():
+@retry(stop=stop_after_attempt(3))
+async def scan():
     me = await client.get_me()
 
     # Проход по всем диалогам
@@ -103,7 +107,7 @@ while True:
     with client:
         start_time = time.time()
         print("Scanning for new messages...")
-        client.loop.run_until_complete(main())
+        client.loop.run_until_complete(scan())
         client.disconnect()
         end_time = time.time()
         print(f"Scan finished in {end_time - start_time:.2f} seconds")

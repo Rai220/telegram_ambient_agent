@@ -99,7 +99,6 @@ def answer(chat_id: str, chat_history) -> AnswerModel:
     try:
         for output in graph.stream(inputs, config=config, stream_mode="updates"):
             current_agent = next(iter(output))
-            # print(f"Отработал агент {current_agent}")
 
         return graph.get_state(config=config)
     except Exception as e:
