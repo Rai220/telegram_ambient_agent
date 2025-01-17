@@ -171,3 +171,4 @@ cython_debug/
 .pypirc
 
 ambient_client.*
+*.pkl

@@ -6,6 +6,10 @@ from telethon.tl.functions.messages import SaveDraftRequest
 import settings
 import agent
 import time
+import pickle
+from collections import deque
+from pathlib import Path
+import storage
 
 load_dotenv(find_dotenv())
 
@@ -13,6 +17,7 @@ load_dotenv(find_dotenv())
 api_id = os.environ["TELEGRAM_API_ID"]
 api_hash = os.environ["TELEGRAM_API_HASH"]
 client = TelegramClient("ambient_client", api_id, api_hash)
+processed_id = storage.load_processed_ids()
 
 def format_messages_as_chat(messages):
     """
@@ -20,7 +25,7 @@ def format_messages_as_chat(messages):
     """
     chat_log = []
     for message in messages:
-        if message.text:  # Пропускаем сообщения без текста
+        if message.text or message.photo or message.video or message.sticker:  # Пропускаем сообщения без понятного контента
             # Преобразуем дату и время сообщения в строку
             timestamp = message.date.strftime("%Y-%m-%d %H:%M:%S")
             # Определяем имя отправителя (если доступно)
@@ -36,16 +41,22 @@ def format_messages_as_chat(messages):
                 content += " <к сообщению приложено видео>"
             if message.photo:
                 content = " <к сообщению приложено изображение>"
+            if message.sticker:
+                content = " <к сообщению приложен стикер>"
             # Формируем строку для сообщения
             chat_log.insert(0, f"[{timestamp}] {sender}: {forward_info} {message.text} {content}\n")
     return "\n".join(chat_log)
 
 async def main():
+    me = await client.get_me()
+    
     # Проход по всем диалогам
     async for dialog in client.iter_dialogs():
         if dialog.archived: # Skip archived dialogs
             continue
         if hasattr(dialog.entity, 'bot') and dialog.entity.bot: # Skip bots
+            continue
+        if me.id == dialog.id: # Skip self saved messages
             continue
         if dialog.is_user:
             # Проверяем количество непрочитанных сообщений
@@ -54,18 +65,31 @@ async def main():
                     messages = await client.get_messages(
                         dialog.entity, limit=dialog.unread_count + settings.history_size
                     )
-                    chat_log = format_messages_as_chat(messages)
+                    
+                    # Каждое сообщение обрабатываем не более одного раза
+                    unique_message_id = f"{dialog.id}_{messages[0].id}"
+                    if processed_id.count(unique_message_id) > 0:
+                        continue
+                    processed_id.append(unique_message_id)
+                    storage.save_processed_ids(processed_id)
+                    
+                    chat_log = format_messages_as_chat(messages).strip()
+                    if chat_log == "":
+                        continue
 
-                    resp = agent.answer(chat_log) + settings.postfix
-                    print(f"Saving draft for dialog: {dialog.id}")
-                    await client(
-                        SaveDraftRequest(
-                            peer=dialog.id,
-                            message=resp.strip(),
-                            no_webpage=True,
+                    resp = agent.answer(str(dialog.id), chat_log)
+                    if resp and resp.values['need_to_send']:
+                        ans = resp.values['answer'] + settings.postfix
+                        print(f"Saving draft for dialog: {dialog.id}")
+                        await client(
+                            SaveDraftRequest(
+                                peer=dialog.id,
+                                message=ans.strip(),
+                                no_webpage=True,
+                            )
                         )
-                    )
-
+                    else:
+                        print(f"Skipping draft for dialog: {dialog.id}")
 
 while(True):
     with client:
