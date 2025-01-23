@@ -19,7 +19,7 @@ load_dotenv(find_dotenv())
 api_id = os.environ["TELEGRAM_API_ID"]
 api_hash = os.environ["TELEGRAM_API_HASH"]
 client = TelegramClient("ambient_client", api_id, api_hash)
-processed_id = storage.load_processed_ids()
+processed_ids = storage.load_processed_ids()
 
 
 def format_messages_as_chat(messages):
@@ -79,10 +79,10 @@ async def scan():
 
                     # Каждое сообщение обрабатываем не более одного раза
                     unique_message_id = f"{dialog.id}_{messages[0].id}"
-                    if processed_id.count(unique_message_id) > 0:
+                    if processed_ids.count(unique_message_id) > 0:
                         continue
-                    processed_id.append(unique_message_id)
-                    storage.save_processed_ids(processed_id)
+                    processed_ids.append(unique_message_id)
+                    storage.save_processed_ids(processed_ids)
 
                     chat_log = format_messages_as_chat(messages).strip()
                     if chat_log == "":
